@@ -97,10 +97,7 @@ class Register(View):
 
 class Verify(View):
 
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super(Verify, self).dispatch(request, *args, **kwargs)
-
+   
     #requires username, otp
     def post(self, request):
         data1 = request.body.decode('utf-8')
