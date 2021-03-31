@@ -25,7 +25,7 @@ SECRET_KEY = '&@1#!67p6dq^o8(4475!!v$1!-t9@i9#y=xm-2oiq^7w1pvn)f'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -40,6 +40,7 @@ INSTALLED_APPS = [
 
     #apps here
     'api',
+    'rest_framework',
     'rest_framework.authtoken',
 ]
 
@@ -96,13 +97,26 @@ DATABASES = {
         'PORT': '3306',
     }
 }
+#cache settings 
+#CACHE_TTL =60 * 3 #3 mins cache timeout for now - for otp use
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/0",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+        
+    }   
+}   
 
 #email settings
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_USE_TLS = True
 EMAIL_PORT = 587
-EMAIL_HOST_USER = os.environ.get("STUDENTAPI_MAIL", '')      
+EMAIL_HOST_USER = os.environ.get("STUDENTAPI_EMAIL", '')      
 EMAIL_HOST_PASSWORD = os.environ.get("STUDENTAPI_PASSWORD", '')
 
 

@@ -18,10 +18,14 @@ from rest_framework import generics
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
 from django.views import View
+from rest_framework.views import APIView
 import random, json
 from django.conf import settings
 from django.core.mail import send_mail
-
+from rest_framework.authentication import TokenAuthentication
+from django.core.cache.backends.base import DEFAULT_TIMEOUT 
+from django.views.decorators.cache import cache_page
+from django.core.cache import cache
 #9d26a52cf7fe021360005617525a5891b2fc939143e60beb67f4faf7ed1a6736
 
 @csrf_exempt
@@ -69,20 +73,23 @@ class Register(View):
             new_student.is_active = 0 
             new_student.save()
             otp = random.randint(1111,9999)
-           
+            #setting in cache
+            a = cache.set(new_student,otp,60)
+            b = cache.get(new_student)
             #email starts here
             subject = "Please verify your account through this otp"
             message =f"Hi {new_student.username}, here is your otp - " + str(otp)
             email_from = settings.EMAIL_HOST_USER
             recipient_list = [new_student.email,]
 
-            send_mail(subject, message , email_from , recipient_list)
+            # send_mail(subject, message , email_from , recipient_list)
 
             #registering user to the student verification table
             # student_object = Student.objects.get(username = new_student.username)
             StudentVerification.objects.create(student_id = new_student, otp = otp)
 
-            return JsonResponse({"Mail Sent to": student_data}, safe = False)
+             
+            return JsonResponse({"Mail Sent to": student_data, "bool" : a, "get" : b }, safe = False)
         
         except Exception as e:
             return JsonResponse({"Error": str(e)}, safe = False)
@@ -96,6 +103,9 @@ class Register(View):
     #     else : False
 
 class Verify(View):
+    @method_decorator(csrf_exempt)
+    def dispatch(self, request, *args, **kwargs):
+        return super(Verify, self).dispatch(request, *args, **kwargs)
 
    
     #requires username, otp
@@ -108,19 +118,21 @@ class Verify(View):
             sv_object = StudentVerification.objects.get(student_id = student.pk)
             given_otp = data["otp"]
             ass_otp = sv_object.otp
+            cache_otp = str(cache.get(student))
 
-            if(ass_otp == given_otp):
+            if(ass_otp == given_otp and cache_otp == given_otp):
                 sv_object.is_active = 1
                 sv_object.save()
                 student.is_active = 1 
                 student.save()
+                cache.delete(student)
 
                 return JsonResponse({"Success" : "User and mail authenticated"})
 
 
             else:
 
-                return JsonResponse({"Error" : "The otp does not match pls try again"})
+                return JsonResponse({"Error" : "The otp does not match pls try again", "cache_otp" : cache_otp, "ass_otp" : ass_otp, "given_otp":given_otp})
         
         except Exception as e :
             return JsonResponse({"Error": str(e)}, safe = False)
@@ -146,28 +158,53 @@ class loginview(View):
 
             if student is not None:
                 if (student.is_active ):
+                    token = Token.objects.create(user =  student)
                     login(request,student)
-                    return JsonResponse({"Successful login" : student.username, "Mail" : student.email})
+                    return JsonResponse({"Successful login" : student.username, "Mail" : student.email, "token" : token.key})
 
                 else :
                     return JsonResponse({"Error" : "Please verify your email first"})
 
             else :
-                JsonResponse({"Unsuccessful login" : "Please check again"}) 
+                return JsonResponse({"Unsuccessful login" : "Please check again"}) 
 
         except Exception as e:
              return JsonResponse({"Error": str(e)}, safe = False)
 
 
 
-class logoutview(View):
+class logout(View):
 
     @method_decorator(csrf_exempt)
     def dispatch(self, request, *args, **kwargs):
-        return super(logoutview,self).dispatch(request, *args , **kwargs)
+        return super(logout,self).dispatch(request, *args , **kwargs)
 
-    @method_decorator(login_required)
+    
     def post(self,request):
-        logout(request)
+        
+        data = json.loads(request.body.decode('utf-8'))
+        
+        user = Student.objects.get(username = data.get('username'))
+        token = Token.objects.get(user = user.id)
+        print(token.id + "Token") 
+        token.delete()
+        return JsonResponse({"Successful Logout" : data}) 
 
             
+#not working, authentication credentials not provided error
+
+class CreateToken(APIView):
+    pass
+#     authentication_classes = (TokenAuthentication,)
+
+#     def post(self, request):
+       
+        
+#         username = request.data.get("username")
+#         password = request.data.get("password")
+#         student = Student.objects.get(username = username, password = password)
+        
+#         token = Token.objects.create(user =  student)
+#         return JsonResponse({"token" : token.key , "user" : student.username})
+
+      
